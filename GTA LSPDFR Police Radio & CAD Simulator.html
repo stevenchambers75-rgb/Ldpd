@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>LSPD Mobile Data Terminal - FiveM LSPDFR Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Chalet / Impact / Monospace style fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,700&family=JetBrains+Mono:wght@400;600;700;800&family=Teko:wght@600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gtadark: '#070a0e',
+            gtaslate: '#0f141c',
+            gtacard: '#141b24',
+            gtaglass: 'rgba(16, 23, 34, 0.85)',
+            lspdblue: '#1b64da',
+            lspdcyan: '#00d2ff',
+            lspdgold: '#e6a100',
+            lspdred: '#ff2a2a',
+            matrixgreen: '#10b981'
+          },
+          fontFamily: {
+            pricedown: ['Teko', 'Impact', 'sans-serif'],
+            tactical: ['Chakra Petch', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scanlines & CRT glow for GTA MDT effect */
+    .crt-scanlines {
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      background-size: 100% 3px, 6px 100%;
+      pointer-events: none;
+    }
+    .neon-border-blue {
+      box-shadow: 0 0 15px rgba(27, 100, 218, 0.35), inset 0 0 10px rgba(0, 210, 255, 0.1);
+    }
+    .neon-border-red {
+      box-shadow: 0 0 20px rgba(255, 42, 42, 0.6), inset 0 0 15px rgba(255, 42, 42, 0.2);
+    }
+    .wanted-star {
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .wanted-star.active {
+      color: #ffcc00;
+      filter: drop-shadow(0 0 8px rgba(255, 204, 0, 0.9));
+      transform: scale(1.15);
+      animation: starFlicker 1.8s infinite alternate;
+    }
+    @keyframes starFlicker {
+      0% { opacity: 0.88; transform: scale(1.12); }
+      100% { opacity: 1; transform: scale(1.22); }
+    }
+    /* Panic strobe mode */
+    @keyframes panicPulse {
+      0%, 100% { background-color: rgba(255, 42, 42, 0.04); }
+      50% { background-color: rgba(255, 42, 42, 0.25); }
+    }
+    .panic-active {
+      animation: panicPulse 0.45s infinite !important;
+      border-color: #ff2a2a !important;
+    }
+    /* Smooth custom scrollbars */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: #070a0e; }
+    ::-webkit-scrollbar-thumb { background: #223042; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #00d2ff; }
+  </style>
+</head>
+<body class="bg-gtadark text-slate-100 font-tactical antialiased select-none min-h-screen flex flex-col justify-between overflow-x-hidden pb-16">
+  
+  <!-- CRT Overlay -->
+  <div class="fixed inset-0 crt-scanlines z-50 pointer-events-none"></div>
+
+  <!-- TOP GTA V HUD BAR -->
+  <header class="sticky top-0 z-40 bg-gtaslate/95 backdrop-blur border-b border-cyan-900/50 px-3 py-2">
+    <div class="flex items-center justify-between">
+      
+      <!-- LSPD Badge & Agency -->
+      <div class="flex items-center gap-2">
+        <div class="relative w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-yellow-300 p-0.5 shadow-md flex items-center justify-center">
+          <svg class="w-6 h-6 text-slate-900 drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-3zm0 4a3 3 0 110 6 3 3 0 010-6zm5 11.2c-1.3-1.64-3.32-2.7-5-2.7s-3.7 1.06-5 2.7c1.47 1.48 3.53 2.5 5 2.5s3.53-1.02 5-2.5z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5 leading-none">
+            <span class="font-pricedown tracking-wider text-xl text-white">LSPD</span>
+            <span class="bg-lspdblue/30 text-lspdcyan text-[10px] px-1.5 py-0.5 rounded border border-lspdblue/60 font-mono font-bold">MDC-v8.4</span>
+          </div>
+          <p class="text-[9px] font-mono text-slate-400 tracking-tighter">SAN ANDREAS STATE POLICE CAD</p>
+        </div>
+      </div>
+
+      <!-- GTA Wanted Level Stars (0-5) -->
+      <div class="flex flex-col items-end">
+        <div class="flex items-center gap-1 text-slate-700" id="wanted-stars-container">
+          <span class="wanted-star text-base cursor-pointer" onclick="setWantedLevel(1)">★</span>
+          <span class="wanted-star text-base cursor-pointer" onclick="setWantedLevel(2)">★</span>
+          <span class="wanted-star text-base cursor-pointer" onclick="setWantedLevel(3)">★</span>
+          <span class="wanted-star text-base cursor-pointer" onclick="setWantedLevel(4)">★</span>
+          <span class="wanted-star text-base cursor-pointer" onclick="setWantedLevel(5)">★</span>
+        </div>
+        <div class="flex items-center gap-2 mt-0.5 text-[10px] font-mono">
+          <span id="hud-clock" class="text-lspdcyan font-bold">17:42:09</span>
+          <span class="text-slate-500">|</span>
+          <span class="text-amber-400 font-bold tracking-wider" id="unit-callsign">1-LINCOLN-18</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Radio Channel Selector Strip -->
+    <div class="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar text-xs font-mono">
+      <div class="flex items-center gap-1.5 text-slate-400 shrink-0">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+        <span class="text-[10px] uppercase font-bold text-slate-300">FREQ:</span>
+      </div>
+      <div class="flex gap-1 overflow-x-auto py-0.5" id="radio-channels">
+        <button onclick="setRadioFreq('LSPD DISP CH-1', 460.025)" class="freq-btn active-freq px-2 py-0.5 text-[11px] rounded bg-lspdblue text-white border border-cyan-400 font-bold whitespace-nowrap">LSPD DISP (460.02)</button>
+        <button onclick="setRadioFreq('BCSO RURAL TAC', 453.175)" class="freq-btn px-2 py-0.5 text-[11px] rounded bg-slate-800/80 text-slate-300 border border-slate-700 hover:border-cyan-500 whitespace-nowrap">BCSO TAC (453.17)</button>
+        <button onclick="setRadioFreq('SASP HWY METRO', 482.900)" class="freq-btn px-2 py-0.5 text-[11px] rounded bg-slate-800/80 text-slate-300 border border-slate-700 hover:border-cyan-500 whitespace-nowrap">SASP METRO (482.90)</button>
+        <button onclick="setRadioFreq('AIR & CHASE OPS', 465.550)" class="freq-btn px-2 py-0.5 text-[11px] rounded bg-slate-800/80 text-slate-300 border border-slate-700 hover:border-cyan-500 whitespace-nowrap">PURSUIT TAC 1</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CAD INTERFACE TABS CONTAINER -->
+  <main class="flex-1 p-3 space-y-3 max-w-4xl mx-auto w-full">
+
+    <!-- RADIO BANNER / AUDIO OSCILLATOR CONTROLLER -->
+    <section class="bg-gtacard rounded-lg border border-cyan-950 neon-border-blue p-3 relative overflow-hidden transition-all duration-300" id="radio-box">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500" id="live-audio-dot"></span>
+          </span>
+          <span class="text-xs font-mono font-bold tracking-wider text-lspdcyan uppercase" id="current-ch-name">LSPD DISP CH-1 // SECURE P25</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] font-mono text-slate-400 bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800" id="radio-sq-status">SQL: OPEN</span>
+          <button onclick="toggleAudioMute()" id="mute-btn" class="text-[10px] font-mono text-emerald-400 border border-emerald-700 px-2 py-0.5 rounded bg-emerald-950/40 hover:bg-emerald-900/60 transition">SFX: ON</button>
+        </div>
+      </div>
+
+      <!-- Real-Time Radio Transmission Box -->
+      <div class="bg-black/80 rounded border border-slate-800/90 p-2.5 min-h-[58px] flex flex-col justify-center font-mono">
+        <div class="flex items-center gap-1.5 text-[10px] text-slate-500 border-b border-slate-800 pb-1 mb-1">
+          <span class="text-amber-500 font-bold" id="tx-unit">DISPATCH</span>
+          <span id="tx-timestamp">17:42:01</span>
+          <span class="ml-auto text-[9px] text-cyan-400" id="tx-ping">PING 14ms</span>
+        </div>
+        <div class="text-xs sm:text-sm font-semibold tracking-wide text-cyan-100 flex items-start gap-1.5" id="radio-transcript">
+          <span class="text-lspdcyan animate-pulse">▶</span>
+          <span id="radio-text">All units stand by. 1-LINCOLN-18 holding frequency on Los Santos West channel.</span>
+        </div>
+      </div>
+
+      <!-- Quick Radio Action Bar -->
+      <div class="grid grid-cols-4 gap-1.5 mt-2.5">
+        <button onclick="simulateUnitAck('10-4')" class="px-2 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 rounded text-xs font-bold font-mono text-center flex flex-col items-center">
+          <span class="text-lspdcyan">10-4</span>
+          <span class="text-[9px] text-slate-400">ROGER</span>
+        </button>
+        <button onclick="simulateUnitAck('10-23')" class="px-2 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 rounded text-xs font-bold font-mono text-center flex flex-col items-center">
+          <span class="text-amber-400">10-23</span>
+          <span class="text-[9px] text-slate-400">ON SCENE</span>
+        </button>
+        <button onclick="simulateUnitAck('10-97')" class="px-2 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 rounded text-xs font-bold font-mono text-center flex flex-col items-center">
+          <span class="text-emerald-400">10-8</span>
+          <span class="text-[9px] text-slate-400">IN SERVICE</span>
+        </button>
+        <button onclick="triggerPanic1033()" class="px-2 py-2 bg-red-950/70 hover:bg-red-900 border border-red-700 active:scale-95 text-red-100 rounded text-xs font-bold font-mono text-center flex flex-col items-center shadow-lg shadow-red-900/40">
+          <span class="text-red-400 animate-pulse">10-33</span>
+          <span class="text-[9px] text-red-300">PANIC!</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- NAVIGATION TABS -->
+    <div class="flex border-b border-slate-800 bg-gtaslate/80 p-1 rounded-lg gap-1">
+      <button onclick="switchTab('cad')" id="tab-btn-cad" class="flex-1 py-1.5 rounded text-xs font-mono font-bold tracking-wide transition bg-lspdblue text-white shadow">
+        🚨 ACTIVE CALLS (<span id="active-call-count">3</span>)
+      </button>
+      <button onclick="switchTab('directory')" id="tab-btn-directory" class="flex-1 py-1.5 rounded text-xs font-mono font-bold tracking-wide transition text-slate-400 hover:text-slate-200">
+        📟 10-CODES LIST (109)
+      </button>
+      <button onclick="switchTab('database')" id="tab-btn-database" class="flex-1 py-1.5 rounded text-xs font-mono font-bold tracking-wide transition text-slate-400 hover:text-slate-200">
+        🔍 10-29 RECORD CHECK
+      </button>
+    </div>
+
+    <!-- TAB 1: CAD / DISPATCH ACTIVE CALLS -->
+    <section id="tab-cad" class="space-y-2.5">
+      <div class="flex items-center justify-between px-1">
+        <h2 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> 911 COMPUTER AIDED DISPATCH (LOS SANTOS & BLANE CO.)
+        </h2>
+        <button onclick="dispatchNewRandomCall()" class="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 hover:bg-cyan-900 active:scale-95 transition">
+          + GENERATE 911 CALL
+        </button>
+      </div>
+
+      <div class="space-y-2.5" id="calls-container">
+        <!-- Calls injected dynamically via JS -->
+      </div>
+    </section>
+
+    <!-- TAB 2: FULL 10-CODES DIRECTORY (10-1 through 10-109) -->
+    <section id="tab-directory" class="hidden space-y-2">
+      <!-- Search input -->
+      <div class="relative">
+        <input type="text" id="codeSearchInput" oninput="filterCodes()" placeholder="Search Code (e.g., 10-50, 10-33, fight, warrant, crash)..." class="w-full bg-gtacard border border-slate-700/80 rounded-lg px-3.5 py-2 pl-9 text-xs sm:text-sm font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lspdcyan focus:ring-1 focus:ring-lspdcyan">
+        <svg class="w-4 h-4 absolute left-3 top-2.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </div>
+
+      <!-- Filter chips -->
+      <div class="flex gap-1 overflow-x-auto pb-1 text-[11px] font-mono no-scrollbar">
+        <button onclick="filterCategory('ALL')" class="category-chip px-2.5 py-1 rounded bg-lspdblue text-white font-bold whitespace-nowrap">ALL</button>
+        <button onclick="filterCategory('PRIORITY')" class="category-chip px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap">🚨 PRIORITY / SAFETY</button>
+        <button onclick="filterCategory('TRAFFIC')" class="category-chip px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap">🚗 TRAFFIC & PURSUIT</button>
+        <button onclick="filterCategory('INCIDENTS')" class="category-chip px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap">🔫 CRIMES & SCENES</button>
+        <button onclick="filterCategory('STATUS')" class="category-chip px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap">📍 LOGISTICS & RADIO</button>
+      </div>
+
+      <!-- Ten Codes List -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 max-h-[55vh] overflow-y-auto pr-1" id="ten-codes-grid">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- TAB 3: 10-29 WARRANT / RECORD CHECK TERMINAL -->
+    <section id="tab-database" class="hidden space-y-3">
+      <div class="bg-gtacard rounded-lg border border-slate-800 p-3">
+        <h3 class="text-xs font-mono font-bold text-lspdcyan uppercase tracking-wider mb-2">SAN ANDREAS CRIMINAL JUSTICE INFORMATION SYSTEM (CJIS)</h3>
+        <div class="flex gap-2">
+          <input type="text" id="cjis-query" placeholder="Enter Full Name or License Plate (e.g. TREVOR PHILIPS, 84KOP901)..." class="flex-1 bg-black/60 border border-slate-700 rounded px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-400 uppercase">
+          <button onclick="runRecordCheck()" class="px-3 py-1.5 bg-lspdblue hover:bg-blue-600 rounded text-xs font-bold font-mono text-white">SEARCH</button>
+        </div>
+      </div>
+
+      <div id="cjis-results" class="bg-black/90 border border-slate-800 rounded-lg p-3 font-mono text-xs text-slate-300 min-h-[160px]">
+        <div class="text-slate-500 text-center py-6">Enter suspect name or vehicle license tag to perform NCIC 10-29 background check.</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM TACTICAL CONTROLLER BAR -->
+  <footer class="fixed bottom-0 left-0 right-0 bg-gtaslate/95 border-t border-slate-800 px-3 py-2 z-40 backdrop-blur-md">
+    <div class="max-w-4xl mx-auto flex items-center justify-between text-xs font-mono">
+      <div class="flex items-center gap-2">
+        <button onclick="pressPTT()" id="ptt-btn" class="px-4 py-2 bg-gradient-to-r from-blue-700 to-cyan-600 hover:from-blue-600 hover:to-cyan-500 active:scale-95 rounded text-white font-bold font-mono flex items-center gap-1.5 shadow-md">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+          <span>PUSH TO TALK (PTT)</span>
+        </button>
+        <span class="text-[10px] text-slate-400 hidden sm:inline" id="ptt-status">MIC READY</span>
+      </div>
+
+      <div class="flex items-center gap-1.5">
+        <button onclick="resetWanted()" class="px-2 py-1.5 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 text-[10px]">CLEAR WANTED</button>
+        <button onclick="toggleScannerLoop()" id="scanner-toggle-btn" class="px-2.5 py-1.5 rounded bg-emerald-950 border border-emerald-700 text-emerald-300 font-bold text-[10px]">SCANNER: ACTIVE</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- JAVASCRIPT: SOUND FX ENGINE, GTA CALL GENERATOR, 10-CODE DATABASE -->
+  <script>
+    /* ==========================================================
+       1. SYNTHESIZED POLICE RADIO SOUND FX (WEB AUDIO API)
+       Pure Web Audio: No external audio assets / MP3 dependencies.
+       ========================================================== */
+    let audioCtx = null;
+    let sfxEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function toggleAudioMute() {
+      sfxEnabled = !sfxEnabled;
+      const btn = document.getElementById('mute-btn');
+      if (sfxEnabled) {
+        btn.textContent = 'SFX: ON';
+        btn.className = 'text-[10px] font-mono text-emerald-400 border border-emerald-700 px-2 py-0.5 rounded bg-emerald-950/40 hover:bg-emerald-900/60 transition';
+        playRadioClick();
+      } else {
+        btn.textContent = 'SFX: OFF';
+        btn.className = 'text-[10px] font-mono text-slate-500 border border-slate-700 px-2 py-0.5 rounded bg-slate-900/40 hover:bg-slate-800 transition';
+      }
+    }
+
+    // Classic Motorola radio beep / MDC chirp
+    function playRadioClick() {
+      if (!sfxEnabled) return;
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(820, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1400, audioCtx.currentTime + 0.05);
+
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+
+        // Radio burst squelch noise
+        playRadioBurst(0.04, 0.03);
+      } catch (e) {
+        console.warn("Audio Context init error:", e);
+      }
+    }
+
+    // Radio static squelch tail
+    function playRadioBurst(duration = 0.06, volume = 0.05) {
+      if (!sfxEnabled) return;
+      try {
+        initAudio();
+        const bufferSize = audioCtx.sampleRate * duration;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.random() * 2 - 1;
+        }
+
+        const whiteNoise = audioCtx.createBufferSource();
+        whiteNoise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1800, audioCtx.currentTime);
+        filter.Q.setValueAtTime(1.8, audioCtx.currentTime);
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+        whiteNoise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        whiteNoise.start();
+      } catch (e) {}
+    }
+
+    // Emergency 10-33 Warble / Alert Tone
+    function playEmergencyAlertTone() {
+      if (!sfxEnabled) return;
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const osc1 = audioCtx.createOscillator();
+        const osc2 = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc1.type = 'sawtooth';
+        osc2.type = 'square';
+
+        osc1.frequency.setValueAtTime(950, now);
+        osc1.frequency.linearRampToValueAtTime(1450, now + 0.2);
+        osc1.frequency.linearRampToValueAtTime(950, now + 0.4);
+        osc1.frequency.linearRampToValueAtTime(1450, now + 0.6);
+
+        osc2.frequency.setValueAtTime(960, now);
+        osc2.frequency.linearRampToValueAtTime(1460, now + 0.2);
+
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.7);
+        osc2.stop(now + 0.7);
+      } catch (e) {}
+    }
+
+    /* ==========================================================
+       2. USER'S COMPLETE 10-CODE REGISTRY (10-1 through 10-109)
+       ========================================================== */
+    const tenCodesData = [
+      { code: "10-1", meaning: "Signal Weak", cat: "STATUS" },
+      { code: "10-2", meaning: "Signal Good", cat: "STATUS" },
+      { code: "10-3", meaning: "Stop Transmitting", cat: "STATUS", priority: true },
+      { code: "10-4", meaning: "Affirmative", cat: "STATUS" },
+      { code: "10-5", meaning: "Relay", cat: "STATUS" },
+      { code: "10-6", meaning: "Busy", cat: "STATUS" },
+      { code: "10-7", meaning: "Out of Service", cat: "STATUS" },
+      { code: "10-8", meaning: "In Service", cat: "STATUS" },
+      { code: "10-9", meaning: "Repeat", cat: "STATUS" },
+      { code: "10-10", meaning: "Negative", cat: "STATUS" },
+      { code: "10-11", meaning: "___ On Duty", cat: "STATUS" },
+      { code: "10-12", meaning: "Standby", cat: "STATUS" },
+      { code: "10-13", meaning: "Existing Conditions", cat: "STATUS" },
+      { code: "10-14", meaning: "Message or Information", cat: "STATUS" },
+      { code: "10-15", meaning: "Message Delivered", cat: "STATUS" },
+      { code: "10-16", meaning: "Reply to Message", cat: "STATUS" },
+      { code: "10-17", meaning: "Enroute", cat: "STATUS" },
+      { code: "10-18", meaning: "Urgent", cat: "PRIORITY", priority: true },
+      { code: "10-19", meaning: "In Contact", cat: "STATUS" },
+      { code: "10-20", meaning: "Location", cat: "STATUS" },
+      { code: "10-21", meaning: "Call by Telephone", cat: "STATUS" },
+      { code: "10-22", meaning: "Disregard", cat: "STATUS" },
+      { code: "10-23", meaning: "On Scene", cat: "STATUS" },
+      { code: "10-24", meaning: "Assignment Completed", cat: "STATUS" },
+      { code: "10-25", meaning: "Report To/Meet", cat: "STATUS" },
+      { code: "10-26", meaning: "Estimated Time of Arrival", cat: "STATUS" },
+      { code: "10-27", meaning: "License Information", cat: "STATUS" },
+      { code: "10-28", meaning: "Registration Information", cat: "STATUS" },
+      { code: "10-29", meaning: "Warrant/Record Check", cat: "STATUS" },
+      { code: "10-30", meaning: "Danger/Caution", cat: "PRIORITY", priority: true },
+      { code: "10-31", meaning: "Pick Up", cat: "STATUS" },
+      { code: "10-32", meaning: "___ Units Needed", cat: "PRIORITY", priority: true },
+      { code: "10-33", meaning: "Help Quick", cat: "PRIORITY", danger: true },
+      { code: "10-34", meaning: "Time", cat: "STATUS" },
+      { code: "10-35", meaning: "Vandalism", cat: "INCIDENTS" },
+      { code: "10-36", meaning: "Larceny", cat: "INCIDENTS" },
+      { code: "10-37", meaning: "Damage to Property", cat: "INCIDENTS" },
+      { code: "10-38", meaning: "Assault", cat: "INCIDENTS", priority: true },
+      { code: "10-39", meaning: "Juvenile Case", cat: "INCIDENTS" },
+      { code: "10-40", meaning: "Fight", cat: "INCIDENTS", priority: true },
+      { code: "10-41", meaning: "Beginning Tour of Duty", cat: "STATUS" },
+      { code: "10-42", meaning: "Ending Tour of Duty", cat: "STATUS" },
+      { code: "10-43", meaning: "Chase", cat: "TRAFFIC", danger: true },
+      { code: "10-44", meaning: "Riot", cat: "INCIDENTS", danger: true },
+      { code: "10-45", meaning: "Bomb Threat", cat: "INCIDENTS", danger: true },
+      { code: "10-46", meaning: "Bank Alarm", cat: "INCIDENTS", danger: true },
+      { code: "10-47", meaning: "Complete Assignment", cat: "STATUS" },
+      { code: "10-48", meaning: "Detaining Subject/Expedite", cat: "PRIORITY", priority: true },
+      { code: "10-49", meaning: "Drag Racing", cat: "TRAFFIC" },
+      { code: "10-50", meaning: "Motor Vehicle Accident", cat: "TRAFFIC" },
+      { code: "10-51", meaning: "Wrecker Needed", cat: "TRAFFIC" },
+      { code: "10-52", meaning: "Ambulance Needed", cat: "PRIORITY", priority: true },
+      { code: "10-53", meaning: "Roadway Blocked", cat: "TRAFFIC" },
+      { code: "10-54", meaning: "Hit and Run", cat: "TRAFFIC", priority: true },
+      { code: "10-55", meaning: "Intoxicated Driver", cat: "TRAFFIC" },
+      { code: "10-56", meaning: "Intoxicated Pedestrian", cat: "INCIDENTS" },
+      { code: "10-57", meaning: "Intoxilyzer Operator", cat: "STATUS" },
+      { code: "10-58", meaning: "Direct Traffic", cat: "TRAFFIC" },
+      { code: "10-59", meaning: "Escort", cat: "TRAFFIC" },
+      { code: "10-60", meaning: "Investigate Suspicious", cat: "INCIDENTS" },
+      { code: "10-61", meaning: "Traffic Stop", cat: "TRAFFIC" },
+      { code: "10-62", meaning: "Breaking and Entering", cat: "INCIDENTS", priority: true },
+      { code: "10-63", meaning: "Investigate __ at __", cat: "INCIDENTS" },
+      { code: "10-64", meaning: "Crime in Progress", cat: "INCIDENTS", danger: true },
+      { code: "10-65", meaning: "Armed Robbery", cat: "INCIDENTS", danger: true },
+      { code: "10-66", meaning: "Notify Medical Examiner", cat: "INCIDENTS" },
+      { code: "10-67", meaning: "Investigate Report of Death", cat: "INCIDENTS", danger: true },
+      { code: "10-68", meaning: "Livestock in Roadway", cat: "TRAFFIC" },
+      { code: "10-69", meaning: "Advise Present Telephone #", cat: "STATUS" },
+      { code: "10-70", meaning: "Improperly Parked Vehicle", cat: "TRAFFIC" },
+      { code: "10-71", meaning: "Improper Use of Radio", cat: "STATUS" },
+      { code: "10-72", meaning: "Prisoner in Custody", cat: "STATUS" },
+      { code: "10-73", meaning: "Mental Subject", cat: "INCIDENTS" },
+      { code: "10-74", meaning: "Prison/Jail Break", cat: "INCIDENTS", danger: true },
+      { code: "10-75", meaning: "Wanted/Stolen", cat: "STATUS", priority: true },
+      { code: "10-76", meaning: "Prowler", cat: "INCIDENTS" },
+      { code: "10-77", meaning: "Assist Fire Department", cat: "STATUS" },
+      { code: "10-78", meaning: "Assist Other Department", cat: "STATUS" },
+      { code: "10-79", meaning: "Civil Disturbance", cat: "INCIDENTS" },
+      { code: "10-80", meaning: "Domestic Disturbance", cat: "INCIDENTS", priority: true },
+      { code: "10-81", meaning: "Return to Office", cat: "STATUS" },
+      { code: "10-82", meaning: "Person W/Gun (10-85 w/NCHP)", cat: "PRIORITY", danger: true },
+      { code: "10-83", meaning: "Silent Run", cat: "STATUS" },
+      { code: "10-84", meaning: "Permission to Leave", cat: "STATUS" },
+      { code: "10-85", meaning: "Stranded Motorist", cat: "TRAFFIC" },
+      { code: "10-86", meaning: "Personnel in Area", cat: "STATUS" },
+      { code: "10-87", meaning: "Message Received", cat: "STATUS" },
+      { code: "10-88", meaning: "Fire at ____", cat: "INCIDENTS", priority: true },
+      { code: "10-89", meaning: "Dog Call", cat: "INCIDENTS" },
+      { code: "10-90", meaning: "Alarm", cat: "INCIDENTS" },
+      { code: "10-91", meaning: "Animal Carcass at ___", cat: "TRAFFIC" },
+      { code: "10-92", meaning: "Surveillance (Radar)", cat: "TRAFFIC" },
+      { code: "10-93", meaning: "Possible Aircraft Crash", cat: "INCIDENTS", danger: true },
+      { code: "10-94", meaning: "Gunshot Wound", cat: "INCIDENTS", danger: true },
+      { code: "10-95", meaning: "Drug Check", cat: "STATUS" },
+      { code: "10-96", meaning: "Meal Break", cat: "STATUS" },
+      { code: "10-97", meaning: "Hospital Report", cat: "STATUS" },
+      { code: "10-98", meaning: "Civil Process", cat: "STATUS" },
+      { code: "10-99", meaning: "Warrant Process", cat: "STATUS" },
+      { code: "10-105", meaning: "Follow‐up Investigation", cat: "STATUS" },
+      { code: "10-106", meaning: "Court Appearance", cat: "STATUS" },
+      { code: "10-107", meaning: "Vehicle Maintenance", cat: "STATUS" },
+      { code: "10-108", meaning: "Building Check", cat: "STATUS" },
+      { code: "10-109", meaning: "Attempted Suicide", cat: "INCIDENTS", danger: true }
+    ];
+
+    /* ==========================================================
+       3. GTA SAN ANDREAS LOCATIONS & UNITS (FiveM / LSPDFR)
+       ========================================================== */
+    const gtaLocations = [
+      "Vinewood Blvd / Meteor St, Downtown Vinewood",
+      "Strawberry Ave / Forum Dr, Davis",
+      "Del Perro Pier / Red Desert Ave",
+      "Rockford Hills / Portola Drive",
+      "Legion Square / San Andreas Ave",
+      "Sandy Shores / Marina Dr (Blaine County)",
+      "Paleto Bay / Great Ocean Highway",
+      "Mirror Park / Nikola Ave",
+      "Covenant Ave / Grove St, Davis",
+      "Vespucci Canals / Prosperity St",
+      "Los Santos International Airport (LSIA) Terminal 2",
+      "Maze Bank Tower / Pillbox Hill"
+    ];
+
+    const gtaUnits = [
+      "1-LINCOLN-18", "2-ADAM-12", "AIR-1 (Eagle Eye)", "3-MARY-4", 
+      "4-CHARLIE-20", "K9-UNIT-2", "HIGHWAY-PATROL-101", "BCSO-SHERIFF-5"
+    ];
+
+    const gtaSuspects = [
+      "Male, Caucasian, red flannel, driving blue Karin Sultan [Plate: 42XYZ99]",
+      "Two African-American males, masks, fleeing eastbound on foot towards Strawberry",
+      "Female, Hispanic, black jacket, driving black Declasse Granger [Plate: 88LSP01]",
+      "Armed suspect wearing tactical vest, last seen on Rockford Plaza roof",
+      "Erratic driver in yellow Bravado Gauntlet spinning doughnuts across lanes"
+    ];
+
+    /* ==========================================================
+       4. CAD ACTIVE CALLS STATE & DATA
+       ========================================================== */
+    let activeCalls = [
+      {
+        id: "CAD-8021",
+        code: "10-65",
+        title: "Armed Robbery in Progress",
+        location: "24/7 Supermarket, Vinewood Blvd / Clinton Ave",
+        desc: "Clerk hit silent alarm. Male brandishing pump shotgun demanding register cash.",
+        stars: 3,
+        status: "DISPATCHED",
+        priority: "CODE 3",
+        responding: ["1-LINCOLN-18", "2-ADAM-12"],
+        time: "17:41:04"
+      },
+      {
+        id: "CAD-8022",
+        code: "10-43",
+        title: "High Speed Pursuit / Chase",
+        location: "Del Perro Freeway Westbound near Exit 4",
+        desc: "Stolen Albany Alpha refusing to yield. Speeds exceeding 115 MPH, weaving into oncoming traffic.",
+        stars: 4,
+        status: "ACTIVE PURSUIT",
+        priority: "CODE 3",
+        responding: ["SASP-101", "AIR-1"],
+        time: "17:39:20"
+      },
+      {
+        id: "CAD-8023",
+        code: "10-50",
+        title: "Motor Vehicle Accident (Traffic Blocked)",
+        location: "Innocence Blvd / Strawberry Ave, Rancho",
+        desc: "T-bone collision involving city bus and SUV. Minor injuries, lanes 1 and 2 blocked.",
+        stars: 1,
+        status: "UNASSIGNED",
+        priority: "CODE 2",
+        responding: [],
+        time: "17:35:12"
+      }
+    ];
+
+    let currentWanted = 2;
+    let selectedCategory = "ALL";
+    let isScannerLoopActive = true;
+    let scannerInterval = null;
+
+    /* ==========================================================
+       5. INITIALIZATION & UI RENDERING
+       ========================================================== */
+    window.addEventListener('DOMContentLoaded', () => {
+      renderTenCodes();
+      renderCalls();
+      setWantedLevel(currentWanted);
+      startClock();
+      startScannerDaemon();
+    });
+
+    function startClock() {
+      setInterval(() => {
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        const clockEl = document.getElementById('hud-clock');
+        if (clockEl) clockEl.innerText = timeStr;
+      }, 1000);
+    }
+
+    // Tab switcher
+    function switchTab(tabId) {
+      ['cad', 'directory', 'database'].forEach(id => {
+        const section = document.getElementById(`tab-${id}`);
+        const btn = document.getElementById(`tab-btn-${id}`);
+        if (id === tabId) {
+          section.classList.remove('hidden');
+          btn.className = "flex-1 py-1.5 rounded text-xs font-mono font-bold tracking-wide transition bg-lspdblue text-white shadow";
+        } else {
+          section.classList.add('hidden');
+          btn.className = "flex-1 py-1.5 rounded text-xs font-mono font-bold tracking-wide transition text-slate-400 hover:text-slate-200";
+        }
+      });
+      playRadioBurst(0.02, 0.02);
+    }
+
+    // Wanted Level System (0 - 5 Stars)
+    function setWantedLevel(stars) {
+      currentWanted = stars;
+      const starElements = document.querySelectorAll('#wanted-stars-container .wanted-star');
+      starElements.forEach((el, index) => {
+        if (index < stars) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      });
+      if (stars >= 4) {
+        playEmergencyAlertTone();
+      } else if (stars > 0) {
+        playRadioClick();
+      }
+    }
+
+    function resetWanted() {
+      setWantedLevel(0);
+      const radioBox = document.getElementById('radio-box');
+      radioBox.classList.remove('panic-active');
+      logRadio("DISPATCH", "All units, Code 4 on scene. Suspect lost or neutralized. Resume normal patrol.", "green");
+    }
+
+    // Render 10-Codes in Grid
+    function renderTenCodes(filter = "") {
+      const grid = document.getElementById('ten-codes-grid');
+      grid.innerHTML = "";
+      
+      const query = filter.toLowerCase().trim();
+      const filtered = tenCodesData.filter(item => {
+        const matchCat = selectedCategory === "ALL" || item.cat === selectedCategory;
+        const matchSearch = item.code.toLowerCase().includes(query) || item.meaning.toLowerCase().includes(query);
+        return matchCat && matchSearch;
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full py-8 text-center font-mono text-slate-500 text-xs">No matching 10-Codes found in database.</div>`;
+        return;
+      }
+
+      filtered.forEach(c => {
+        const card = document.createElement('div');
+        const isDanger = c.danger;
+        const isPriority = c.priority;
+
+        let borderClass = "border-slate-800 hover:border-cyan-500";
+        let badgeColor = "text-lspdcyan";
+        if (isDanger) {
+          borderClass = "border-red-900/60 bg-red-950/20 hover:border-red-500";
+          badgeColor = "text-red-400";
+        } else if (isPriority) {
+          borderClass = "border-amber-900/50 bg-amber-950/20 hover:border-amber-400";
+          badgeColor = "text-amber-400";
+        }
+
+        card.className = `p-2 rounded bg-gtacard/90 border ${borderClass} transition cursor-pointer active:scale-98 flex flex-col justify-between group`;
+        card.onclick = () => transmitCode(c);
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between font-mono">
+            <span class="font-extrabold ${badgeColor} text-xs tracking-wider">${c.code}</span>
+            <span class="text-[9px] px-1 py-0.2 bg-black/50 text-slate-400 rounded border border-slate-800">${c.cat}</span>
+          </div>
+          <div class="text-[11px] font-semibold text-slate-200 mt-1 line-clamp-1 group-hover:text-cyan-300">
+            ${c.meaning}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function filterCodes() {
+      const text = document.getElementById('codeSearchInput').value;
+      renderTenCodes(text);
+    }
+
+    function filterCategory(cat) {
+      selectedCategory = cat;
+      document.querySelectorAll('.category-chip').forEach(chip => {
+        if (chip.textContent.includes(cat) || (cat === 'ALL' && chip.textContent === 'ALL')) {
+          chip.className = "category-chip px-2.5 py-1 rounded bg-lspdblue text-white font-bold whitespace-nowrap";
+        } else {
+          chip.className = "category-chip px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap";
+        }
+      });
+      filterCodes();
+    }
+
+    /* ==========================================================
+       6. RADIO TRANSMISSION SIMULATOR & LOGGING
+       ========================================================== */
+    function logRadio(unit, message, style = "normal") {
+      playRadioClick();
+      const unitEl = document.getElementById('tx-unit');
+      const timeEl = document.getElementById('tx-timestamp');
+      const textEl = document.getElementById('radio-text');
+      const box = document.getElementById('radio-box');
+
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      timeEl.innerText = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      unitEl.innerText = unit;
+
+      if (style === "danger") {
+        unitEl.className = "text-red-400 font-bold animate-pulse";
+        textEl.className = "text-xs sm:text-sm font-semibold tracking-wide text-red-200";
+        box.classList.add('panic-active');
+      } else if (style === "warn") {
+        unitEl.className = "text-amber-400 font-bold";
+        textEl.className = "text-xs sm:text-sm font-semibold tracking-wide text-amber-200";
+        box.classList.remove('panic-active');
+      } else {
+        unitEl.className = "text-cyan-400 font-bold";
+        textEl.className = "text-xs sm:text-sm font-semibold tracking-wide text-cyan-100";
+        box.classList.remove('panic-active');
+      }
+
+      textEl.innerText = message;
+    }
+
+    function transmitCode(c) {
+      const loc = gtaLocations[Math.floor(Math.random() * gtaLocations.length)];
+      if (c.danger) {
+        setWantedLevel(Math.max(currentWanted, 4));
+        logRadio("1-LINCOLN-18", `TRANSMITTING ${c.code} (${c.meaning.toUpperCase()})! Location: ${loc}. Requesting immediate emergency backup!`, "danger");
+      } else if (c.priority) {
+        logRadio("1-LINCOLN-18", `Unit 1-Lincoln-18 with a ${c.code} (${c.meaning}) near ${loc}.`, "warn");
+      } else {
+        logRadio("1-LINCOLN-18", `1-Lincoln-18: Copy ${c.code} - ${c.meaning}. Location: ${loc}.`, "normal");
+      }
+    }
+
+    function simulateUnitAck(type) {
+      if (type === '10-4') {
+        logRadio("1-LINCOLN-18", "10-4, affirmative dispatch. 1-Lincoln-18 acknowledges and proceeding as assigned.", "normal");
+      } else if (type === '10-23') {
+        logRadio("1-LINCOLN-18", "10-23, unit is on-scene. Show 1-Lincoln-18 investigating.", "warn");
+      } else if (type === '10-97') {
+        logRadio("1-LINCOLN-18", "10-8, show 1-Lincoln-18 back in service, available for calls.", "normal");
+      }
+    }
+
+    function triggerPanic1033() {
+      playEmergencyAlertTone();
+      setWantedLevel(5);
+      const radioBox = document.getElementById('radio-box');
+      radioBox.classList.add('panic-active');
+      logRadio("OFFICER DOWN", "🚨 10-33 / CODE 99! OFFICER NEEDS HELP IMMEDIATELY! Vinewood Blvd & Alta St! ALL AVAILABLE UNITS RESPOND CODE 3!", "danger");
+
+      // Dispatch auto-updates call log
+      const panicCall = {
+        id: `CAD-${Math.floor(1000 + Math.random() * 9000)}`,
+        code: "10-33",
+        title: "OFFICER IN DISTRESS (10-33 PANIC)",
+        location: "Vinewood Blvd & Alta St (Metropolitan)",
+        desc: "Officer emergency button activated. Shots reported fired in vicinity. All units expedite.",
+        stars: 5,
+        status: "EMERGENCY ROLL",
+        priority: "CODE 3 HOT",
+        responding: ["1-LINCOLN-18", "ALL UNITS"],
+        time: new Date().toLocaleTimeString()
+      };
+      activeCalls.unshift(panicCall);
+      renderCalls();
+    }
+
+    // Push To Talk (PTT) Simulation button
+    let isTalking = false;
+    function pressPTT() {
+      isTalking = !isTalking;
+      const btn = document.getElementById('ptt-btn');
+      const status = document.getElementById('ptt-status');
+      if (isTalking) {
+        playRadioBurst(0.08, 0.09);
+        btn.classList.add('ring-2', 'ring-red-500', 'bg-red-700');
+        status.textContent = "TRANSMITTING...";
+        status.className = "text-[10px] text-red-400 font-bold animate-pulse";
+        logRadio("1-LINCOLN-18", "1-Lincoln-18 transmitting on tactical frequency... Dispatch, advise on latest 10-29 status.", "warn");
+      } else {
+        playRadioBurst(0.04, 0.04);
+        btn.classList.remove('ring-2', 'ring-red-500', 'bg-red-700');
+        status.textContent = "MIC READY";
+        status.className = "text-[10px] text-slate-400";
+      }
+    }
+
+    function setRadioFreq(name, freq) {
+      document.getElementById('current-ch-name').innerText = `${name} // ${freq} MHz`;
+      document.querySelectorAll('.freq-btn').forEach(btn => {
+        if (btn.innerText.includes(name.split(' ')[0])) {
+          btn.className = "freq-btn px-2 py-0.5 text-[11px] rounded bg-lspdblue text-white border border-cyan-400 font-bold whitespace-nowrap";
+        } else {
+          btn.className = "freq-btn px-2 py-0.5 text-[11px] rounded bg-slate-800/80 text-slate-300 border border-slate-700 hover:border-cyan-500 whitespace-nowrap";
+        }
+      });
+      playRadioBurst(0.08, 0.05);
+      logRadio("MDC DISPATCH", `Switched to channel ${name} [${freq} MHz]. Radio handshake verified.`, "normal");
+    }
+
+    /* ==========================================================
+       7. CAD CALLS LIST & PROCEDURES
+       ========================================================== */
+    function renderCalls() {
+      const container = document.getElementById('calls-container');
+      const countEl = document.getElementById('active-call-count');
+      countEl.innerText = activeCalls.length;
+      container.innerHTML = "";
+
+      if (activeCalls.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-slate-500 font-mono text-xs bg-gtacard rounded-lg border border-slate-800">No active incidents pending in CAD. All channels clear (Code 4).</div>`;
+        return;
+      }
+
+      activeCalls.forEach((call, idx) => {
+        const isPanic = call.code === "10-33" || call.stars >= 4;
+        const callCard = document.createElement('div');
+        callCard.className = `bg-gtacard/95 rounded-lg border ${isPanic ? 'border-red-600/80 bg-red-950/10' : 'border-slate-800'} p-3 space-y-2 relative`;
+        
+        callCard.innerHTML = `
+          <div class="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${isPanic ? 'bg-red-600 text-white' : 'bg-lspdblue text-white'}">${call.code}</span>
+                <span class="text-xs font-mono text-cyan-400 font-bold">${call.id}</span>
+                <span class="text-[10px] font-mono text-slate-400">@ ${call.time}</span>
+              </div>
+              <h3 class="text-sm font-bold tracking-wide text-white mt-1">${call.title}</h3>
+            </div>
+            <div class="flex flex-col items-end">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${call.priority.includes('CODE 3') ? 'bg-red-900/60 text-red-300 border border-red-700' : 'bg-slate-800 text-slate-300'}">${call.priority}</span>
+              <span class="text-[10px] font-mono text-amber-400 mt-0.5">${'★'.repeat(call.stars)}</span>
+            </div>
+          </div>
+
+          <div class="text-xs font-mono text-slate-300 space-y-1">
+            <div><span class="text-slate-500 font-bold">LOC:</span> ${call.location}</div>
+            <div class="text-slate-400 text-[11px] leading-relaxed"><span class="text-slate-500 font-bold">DETAILS:</span> ${call.desc}</div>
+            <div class="text-[10px] text-cyan-300/80 pt-1"><span class="text-slate-500 font-bold">ATTACHED UNITS:</span> ${call.responding.length ? call.responding.join(', ') : 'None assigned'}</div>
+          </div>
+
+          <div class="flex items-center gap-1.5 pt-2 border-t border-slate-800/60">
+            <button onclick="respondCall('${call.id}', 'CODE 3')" class="flex-1 py-1 px-2 rounded bg-lspdblue hover:bg-blue-600 active:scale-95 text-white font-mono font-bold text-[11px] flex items-center justify-center gap-1 shadow">
+              <span>RESPOND (CODE 3)</span>
+            </button>
+            <button onclick="respondCall('${call.id}', '10-23')" class="py-1 px-2 rounded bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-mono text-[11px]">
+              10-23 SCENE
+            </button>
+            <button onclick="clearCall('${call.id}')" class="py-1 px-2 rounded bg-emerald-950/60 border border-emerald-800 hover:bg-emerald-900 active:scale-95 text-emerald-300 font-mono text-[11px]">
+              10-24 CLEAR
+            </button>
+          </div>
+        `;
+        container.appendChild(callCard);
+      });
+    }
+
+    function respondCall(callId, type) {
+      const call = activeCalls.find(c => c.id === callId);
+      if (!call) return;
+
+      if (!call.responding.includes("1-LINCOLN-18")) {
+        call.responding.push("1-LINCOLN-18");
+      }
+      setWantedLevel(call.stars);
+
+      if (type === 'CODE 3') {
+        logRadio("1-LINCOLN-18", `Show 1-Lincoln-18 responding Code 3 to ${call.title} at ${call.location}. 10-17 enroute.`, "warn");
+      } else {
+        logRadio("1-LINCOLN-18", `1-Lincoln-18 is 10-23 on scene for ${call.id} (${call.location}).`, "normal");
+      }
+      renderCalls();
+    }
+
+    function clearCall(callId) {
+      const call = activeCalls.find(c => c.id === callId);
+      activeCalls = activeCalls.filter(c => c.id !== callId);
+      playRadioBurst(0.04, 0.03);
+      logRadio("1-LINCOLN-18", `Incident ${callId} completed. Unit 1-Lincoln-18 10-24 Code 4, returning to service (10-8).`, "normal");
+      renderCalls();
+      if (activeCalls.length === 0) setWantedLevel(0);
+    }
+
+    function dispatchNewRandomCall() {
+      const random10 = tenCodesData.filter(t => t.cat === 'INCIDENTS' || t.cat === 'TRAFFIC')[Math.floor(Math.random() * 25)];
+      const loc = gtaLocations[Math.floor(Math.random() * gtaLocations.length)];
+      const suspect = gtaSuspects[Math.floor(Math.random() * gtaSuspects.length)];
+      const stars = random10.danger ? 4 : (random10.priority ? 3 : Math.floor(Math.random() * 2) + 1);
+
+      const newCall = {
+        id: `CAD-${Math.floor(1000 + Math.random() * 9000)}`,
+        code: random10.code,
+        title: random10.meaning,
+        location: loc,
+        desc: `Caller reports: ${suspect}. Advise caution.`,
+        stars: stars,
+        status: "PENDING DISPATCH",
+        priority: stars >= 3 ? "CODE 3" : "CODE 2",
+        responding: [gtaUnits[Math.floor(Math.random() * gtaUnits.length)]],
+        time: new Date().toLocaleTimeString()
+      };
+
+      activeCalls.unshift(newCall);
+      renderCalls();
+      setWantedLevel(stars);
+      logRadio("DISPATCH", `Attention all units: 911 reports ${newCall.code} (${newCall.title}) at ${newCall.location}. Respond as assigned.`, stars >= 3 ? "danger" : "normal");
+    }
+
+    /* ==========================================================
+       8. CJIS RECORD CHECK (10-29 Simulation)
+       ========================================================== */
+    const mockRecordDb = [
+      {
+        name: "TREVOR PHILIPS",
+        plate: "BETTY3",
+        dob: "11/14/1968",
+        warrants: ["ACTIVE FELONY: ARMED ROBBERY", "10-74 PRISON ESCAPE", "ASSAULT ON PEACE OFFICER"],
+        status: "EXTREMELY DANGEROUS",
+        danger: true
+      },
+      {
+        name: "MICHAEL DE SANTA",
+        plate: "5MDS201",
+        dob: "04/22/1965",
+        warrants: ["CLEARED / EXPIRED"],
+        status: "NO ACTIVE WARRANTS",
+        danger: false
+      },
+      {
+        name: "FRANKLIN CLINTON",
+        plate: "FC1988",
+        dob: "09/16/1988",
+        warrants: ["10-49 RECKLESS STREET RACING (MISDEMEANOR C)"],
+        status: "CAUTION ADVISED",
+        danger: false
+      }
+    ];
+
+    function runRecordCheck() {
+      const query = document.getElementById('cjis-query').value.trim().toUpperCase();
+      const resultsContainer = document.getElementById('cjis-results');
+      if (!query) return;
+
+      playRadioClick();
+      resultsContainer.innerHTML = `<div class="text-cyan-400 font-mono animate-pulse">Querying San Andreas CJIS / NCIC central database for "${query}"...</div>`;
+
+      setTimeout(() => {
+        const found = mockRecordDb.find(r => r.name.includes(query) || r.plate.includes(query));
+
+        if (found) {
+          playRadioBurst(0.06, 0.05);
+          resultsContainer.innerHTML = `
+            <div class="border-b border-slate-700 pb-2 mb-2 flex justify-between items-center">
+              <span class="text-white font-bold text-sm">${found.name}</span>
+              <span class="px-2 py-0.5 text-[10px] font-bold rounded ${found.danger ? 'bg-red-600 text-white' : 'bg-emerald-700 text-white'}">${found.status}</span>
+            </div>
+            <div class="space-y-1 text-[11px] font-mono">
+              <div><span class="text-slate-500">DOB:</span> ${found.dob}</div>
+              <div><span class="text-slate-500">REGISTERED VEHICLE:</span> DECLASSE / TAG: ${found.plate}</div>
+              <div class="pt-1"><span class="text-slate-500">NCIC WARRANTS:</span></div>
+              <ul class="list-disc list-inside text-amber-300 font-bold">
+                ${found.warrants.map(w => `<li>${w}</li>`).join('')}
+              </ul>
+            </div>
+          `;
+          logRadio("DISPATCH", `10-29 return for ${found.name}: ${found.status}. ${found.warrants.join(', ')}.`, found.danger ? "danger" : "normal");
+        } else {
+          // Dynamic procedural generated suspect
+          const clean = Math.random() > 0.4;
+          resultsContainer.innerHTML = `
+            <div class="border-b border-slate-700 pb-2 mb-2 flex justify-between items-center">
+              <span class="text-white font-bold text-sm">${query}</span>
+              <span class="px-2 py-0.5 text-[10px] font-bold rounded ${clean ? 'bg-emerald-700 text-white' : 'bg-amber-600 text-white'}">${clean ? 'VALID / CLEAR' : 'SUSPENDED / FLAGGED'}</span>
+            </div>
+            <div class="space-y-1 text-[11px] font-mono">
+              <div><span class="text-slate-500">SAN ANDREAS OLN:</span> SA-${Math.floor(10000000 + Math.random() * 90000000)}</div>
+              <div><span class="text-slate-500">REGISTRATION:</span> ACTIVE (EXP: 12/2027)</div>
+              <div><span class="text-slate-500">WARRANTS:</span> ${clean ? 'No active wants or warrants found in state repository.' : '10-75 Subject wanted for questioning in property damage.'}</div>
+            </div>
+          `;
+          logRadio("DISPATCH", `10-29 check on "${query}": ${clean ? 'Clear and valid. No wants.' : 'Caution advised, flagged for questioning.'}`, "normal");
+        }
+      }, 700);
+    }
+
+    /* ==========================================================
+       9. BACKGROUND DISPATCH SCANNER DAEMON
+       Simulates realistic periodic chatter like FiveM radio
+       ========================================================== */
+    const randomChatter = [
+      { unit: "AIR-1", text: "Air-1 is visual over Del Perro Pier, orbiting 1,500 feet, clear skies.", style: "normal" },
+      { unit: "2-ADAM-12", text: "2-Adam-12 conducting 10-61 traffic stop on Legion Square, tag 48ABC12.", style: "normal" },
+      { unit: "BCSO-SHERIFF-5", text: "Show unit 5 10-97 at Sandy Shores Medical clinic.", style: "normal" },
+      { unit: "DISPATCH", text: "All units, broadcast time check 10-34. Ambient temperature 74 degrees.", style: "normal" },
+      { unit: "K9-UNIT-2", text: "K9-2 is 10-8 available for tracking and narcotics sweeps.", style: "normal" },
+      { unit: "HIGHWAY-101", text: "Traffic hazard cleared on Great Ocean Highway mile marker 14.", style: "normal" }
+    ];
+
+    function startScannerDaemon() {
+      if (scannerInterval) clearInterval(scannerInterval);
+      scannerInterval = setInterval(() => {
+        if (!isScannerLoopActive) return;
+        const msg = randomChatter[Math.floor(Math.random() * randomChatter.length)];
+        logRadio(msg.unit, msg.text, msg.style);
+      }, 24000); // authentic periodic radio frequency traffic
+    }
+
+    function toggleScannerLoop() {
+      isScannerLoopActive = !isScannerLoopActive;
+      const btn = document.getElementById('scanner-toggle-btn');
+      if (isScannerLoopActive) {
+        btn.textContent = "SCANNER: ACTIVE";
+        btn.className = "px-2.5 py-1.5 rounded bg-emerald-950 border border-emerald-700 text-emerald-300 font-bold text-[10px]";
+        playRadioClick();
+      } else {
+        btn.textContent = "SCANNER: MUTED";
+        btn.className = "px-2.5 py-1.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-bold text-[10px]";
+      }
+    }
+  </script>
+</body>
+</html>
